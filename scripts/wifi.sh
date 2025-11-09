@@ -93,18 +93,21 @@ function helper_get_networks() {
 # Function to retrieve and store the formatted list of available networks
 # It reads from the formatted network file and stores SSIDs, Security, and Signal Strength
 function get_networks() {
-    ssid=() ; local security=() ; local signal=()
+	ssid=() ; local security=() ; local signal=()
     helper_get_networks ; local local_file="$NETWORK_FILE"
 
     # Read the CSV formatted file and store each column into separate arrays
-    while IFS=',' read -r col1 col2 col3; do
-        ssid+=("$col1") ; security+=("$col2") ; signal+=("$col3")
-    done < <(tail -n +2 "$local_file")
-
+    while IFS=',' read -r col1 col2 col3 col4; do
+		if [[ "$col1" != "0m> [0m" ]]; then
+			ssid+=("$col1") security+=("$col2") signal+=("$col3")
+		else
+			ssid+=("$col2") security+=("$col3") signal+=("$col4")
+		fi
+    done < <(tail -n +2 $local_file)	
     # Combine the data into the 'wifi' array
     for ((i = 0; i < ${#ssid[@]}; i++)); do
         wifi+=("${signal[$i]} ${ssid[$i]} (${security[$i]})")
-    done
+    done	
 	[[ "${wifi[2]}" == ' works available ()' ]] && wifi[2]=' No networks available!!'
 }
 
@@ -112,7 +115,7 @@ function get_networks() {
 # It handles both known and unknown networks, including entering a passphrase for secure networks
 function connect_to_network() {
     selected_ssid="${ssid[$1]}" ; notify "Connecting..." "Attempting to access $selected_ssid!!"
-    local known ; known=$(iwctl known-networks list | grep -w "$selected_ssid")
+    known=$(iwctl known-networks list | grep -w "$selected_ssid")
 	
 	# Notify function when connecting... opened networks
 	function notify_connection() {
