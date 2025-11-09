@@ -2,10 +2,7 @@
 
 The scripts I use in almost everything I want to access in the a my desktop. Disclaimer, some of the scripts are not entirely mine, namely the `bluetooth`, `wifi`, and `powermenu`.
 
-<video controls width="600">
-  <source src="preview.mp4" type="video/mp4">
-  Your browser does not support the video tag.
-</video>
+https://github.com/user-attachments/assets/ab7b87f9-fe97-48f2-b575-f2621c11c761
 
 
 # Setup
