@@ -91,7 +91,7 @@ elif [[ -n $device_selected ]]; then
     trusted="Enable auto-connect"
   fi
 
-  device_action=$(echo -e "$paired\n$trusted" | rofi -dmenu -i -theme $ROFI_THEME -p "$device_name")
+  device_action=$(echo -e "$paired\n$trusted" | rofi --normal-window -dmenu -i -theme $ROFI_THEME -p "$device_name")
   if [[ "$device_action" =~ "Pair" ]]; then
     bluetoothctl pairable on
     if bluetoothctl pair "$device_mac"; then
