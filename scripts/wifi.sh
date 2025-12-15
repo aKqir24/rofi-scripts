@@ -119,7 +119,7 @@ function connect_to_network() {
 	
 	# Notify function when connecting... opened networks
 	function notify_connection() {
-		if [[ -z "$connection_output" ]]; then
+		if [[ -z "$connection_output" ]] || [[ $(iwctl station $INTERFACE show | awk '/State/ {print $2}') == "connected" ]]; then
             notify "Connection Was Successful!!" "You are now connected to $selected_ssid!!" ; return 
         else 
 			if [[ $connection_output == "Terminate" ]]; then
@@ -144,7 +144,7 @@ function connect_to_network() {
         # Attempt to connect to a known network
         local connection_output 
 		connection_output=$(timeout 2 iwctl station "$INTERFACE" connect "$selected_ssid" 2>&1)
-        notify_connection 
+        sleep 8 ; notify_connection 
     else
 		# Attempting to connect to a not known network
 		if iwctl station "$INTERFACE" get-networks | grep "$selected_ssid" | grep 'open'; then
