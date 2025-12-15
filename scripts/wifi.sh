@@ -136,7 +136,7 @@ function connect_to_network() {
 	function get_password() {
 	# Prompt for a password if the network is not open
 		(rofi -dmenu -password -p "  " -theme "$PASS_WIN_THEME") > "$TEMP_PASSWORD_FILE"
-		connection_output=$(iwctl station "$INTERFACE" connect "$selected_ssid" --passphrase="$(<"$TEMP_PASSWORD_FILE")" 2>&1)
+		connection_output=$(timeout 2 iwctl station "$INTERFACE" connect "$selected_ssid" --passphrase="$(<"$TEMP_PASSWORD_FILE")" 2>&1)
 		notify_connection
 	}
 
