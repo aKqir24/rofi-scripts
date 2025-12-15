@@ -40,22 +40,15 @@ check_status() {
     echo "$iface $wifi_status"
 }
 
-get_password() {
+connect_with_password() {	
     rofi -dmenu -password -p "" -theme "$PASS_WIN_THEME" > "$TEMP_PASSWORD_FILE"
-    echo "<$(<"$TEMP_PASSWORD_FILE")>"
+    password="$(<"$TEMP_PASSWORD_FILE")"
+	connection_output=$(timeout 2 iwctl station "$INTERFACE" connect "$1" --passphrase="$password" 2>&1)
 }
 
 notify_connection() {
-    local ssid="$1"
-    local output="$2"
-    local state=$(iwctl station "$INTERFACE" show | awk '/State/ {print $2}')
-
     if [[ -z "$output" ]] || [[ "$state" == "connected" ]]; then
-        notify "Connection Successful" "Connected to $ssid"
-    elif [[ "$output" == "Terminate" ]]; then
-        notify "Wrong Password" "Retrying..."
-        iwctl known-networks "$ssid" forget
-        sleep 2
+        notify "Connection Successful" "Connected to $1"
     else
         notify "Connection Failed" "Something went wrong."
     fi
@@ -109,27 +102,33 @@ get_networks() {
         wifi+=("${signal[$i]} ${ssid[$i]} (${security[$i]})")
     done
 
-    [[ "${wifi[2]}" == ' works available ()' ]] && wifi[2]='No networks available!'
+    [[ "${wifi[0]}" == ' works available ()' ]] && wifi[0]='No networks available!'
 }
 
 connect_to_network() {
     local selected_ssid="${ssid[$1]}"
-    notify "Connecting..." "Attempting $selected_ssid"
-
-    local known=$(iwctl known-networks list | grep -w "$selected_ssid")
-    local connection_output=""
+	local ssid_security="${security[$1]}"
+	local known=$(iwctl known-networks list | grep -w "$selected_ssid")
+	local state=$(iwctl station "$INTERFACE" show | awk '/State/ {print $2}')
+    
+	notify "Connecting..." "Attempting $selected_ssid"
 
     if [[ -n "$known" ]]; then
         connection_output=$(timeout 2 iwctl station "$INTERFACE" connect "$selected_ssid" 2>&1)
-        sleep 3 && notify_connection "$selected_ssid" "$connection_output"
+        if [[ $state != "connected" ]]; then
+			notify "Wrong Password" "Retrying..."
+			iwctl known-networks "<"$ssid">" forget
+			connect_with_password "$selected_ssid" "$ssid_security"
+			return
+		fi
+		notify_connection "$selected_ssid" "$connection_output"
     else
         if iwctl station "$INTERFACE" get-networks | grep -q "$selected_ssid" | grep -q 'open'; then
             connection_output=$(iwctl station "$INTERFACE" connect "$selected_ssid" 2>&1)
             notify_connection "$selected_ssid" "$connection_output"
         else
-            local pw=$(get_password)
-            connection_output=$(timeout 2 iwctl station "$INTERFACE" connect "$selected_ssid" --passphrase="$pw" 2>&1)
-            notify_connection "$selected_ssid" "$connection_output"
+            connect_with_password "$selected_ssid" "$ssid_security"
+			notify_connection "$selected_ssid" "$connection_output"
         fi
     fi
 }
@@ -162,6 +161,13 @@ wifi_status() {
 #############################
 # Menu Functions
 #############################
+
+power() { iwctl device "$INTERFACE" set-property Powered "$1" ; main; }
+notify() { dunstctl close-all ; notify-send "$1" "$2";}
+function disconnect() {
+    iwctl station "$INTERFACE" disconnect
+    notify "Network Disconnected!!" "You are now disconnected to $selected_ssid..."
+}
 
 scan() {
     local selected_index=1
