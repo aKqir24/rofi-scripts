@@ -40,6 +40,10 @@ check_status() {
     echo "$iface $wifi_status"
 }
 
+check_state() {
+	echo "$(iwctl station "$INTERFACE" show | awk '/State/ {print $2}')"
+}
+
 connect_with_password() {	
     rofi -dmenu -password -p "" -theme "$PASS_WIN_THEME" > "$TEMP_PASSWORD_FILE"
     password="$(<"$TEMP_PASSWORD_FILE")"
@@ -47,7 +51,7 @@ connect_with_password() {
 }
 
 notify_connection() {
-    if [[ -z "$output" ]] || [[ "$state" == "connected" ]]; then
+	if [[ -z "$output" ]] || [[ $(check_state) == "connected" ]]; then
         notify "Connection Successful" "Connected to $1"
     else
         notify "Connection Failed" "Something went wrong."
@@ -102,23 +106,23 @@ get_networks() {
         wifi+=("${signal[$i]} ${ssid[$i]} (${security[$i]})")
     done
 
-    [[ "${wifi[0]}" == ' works available ()' ]] && wifi[0]='No networks available!'
+	if [[ "${wifi[0]}" == ' works available ()' ]]; then
+		unset wifi[0] ; notify "No available networks" "There are no available networks"
+	fi
 }
 
 connect_to_network() {
     local selected_ssid="${ssid[$1]}"
-	local ssid_security="${security[$1]}"
-	local known=$(iwctl known-networks list | grep -w "$selected_ssid")
-	local state=$(iwctl station "$INTERFACE" show | awk '/State/ {print $2}')
-    
+	local known=$(iwctl known-networks list | grep -w "$selected_ssid")	
 	notify "Connecting..." "Attempting $selected_ssid"
 
     if [[ -n "$known" ]]; then
         connection_output=$(timeout 2 iwctl station "$INTERFACE" connect "$selected_ssid" 2>&1)
-        if [[ $state != "connected" ]]; then
+		while [[ $(check_state) == "connecting" ]]; do sleep 1; done # Waits until dis/connected
+		if [[ $(check_state) != "connected" ]]; then
 			notify "Wrong Password" "Retrying..."
 			iwctl known-networks "<"$ssid">" forget
-			connect_with_password "$selected_ssid" "$ssid_security"
+			connect_with_password "$selected_ssid" 
 			return
 		fi
 		notify_connection "$selected_ssid" "$connection_output"
@@ -140,12 +144,21 @@ connect_to_network() {
 fetch_wifi_metadata() {
     iwctl station "$INTERFACE" show > "$RAW_METADATA_FILE"
     {
-        echo "󱚷  Return"
-        echo "󱛄  Refresh"
-        sed $'s/[^[:print:]\t]//g' "$RAW_METADATA_FILE" | tail -n +6 | sed '/^$/d; s/  \+/,/g'
+
+        # Add options to return or refresh the menu
+        echo "󱚷  Return" ; echo "󱛄  Refresh" ; local i=1 # Read the raw metadata file and process each line
+        sed $'s/[^[:print:]\t]//g' "$RAW_METADATA_FILE" | while read -r line; do
+            (( i <= 5 )) && ((i++)) && continue
+            # Skip empty lines and replace consecutive spaces with commas
+            [[ -z "$line" ]] && continue ; echo "$line" | sed 's/  \+/,/g'
+
+        done
     } > "$METADATA_FILE"
 
-    mapfile -t list < "$METADATA_FILE"
+    # Extract the second column into a list of values
+    while IFS=, read -r value; do
+        local list+=("$value")
+    done < "$METADATA_FILE"
     echo "${list[@]}"
 }
 
@@ -197,7 +210,7 @@ rofi_menu() {
 
     echo -e "$options" | $ROFI_DEFAULT_MODE
 }
-
+# TODO: Auto connection toggle
 run_cmd() {
     case "$1" in
         "${MENU_OPTIONS[0]}") main ;;
@@ -210,12 +223,7 @@ run_cmd() {
 }
 
 #############################
-# Main
+# Start
 #############################
 
-main() {
-    local choice=$(rofi_menu)
-    run_cmd "$choice"
-}
-
-main && clean_up
+run_cmd "$(rofi_menu)" && clean_up
